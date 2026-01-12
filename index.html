@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>偉鋼彰濱廠區監視器位置查詢系統</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #ecf0f1;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100dvh;
+            position: relative;
+        }
+
+        /* 側邊欄 */
+        .sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            overflow-y: scroll;
+            -webkit-overflow-scrolling: touch;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar-header h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .search-box {
+            position: relative;
+            margin-top: 10px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .search-box input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* 新增：清除按鈕樣式 */
+        .clear-search-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 5px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .clear-search-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .zone-section {
+            margin: 10px 0;
+        }
+
+        .zone-title {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            color: white;
+            font-weight: bold;
+            border-left: 4px solid #3498db;
+            margin-bottom: 10px;
+        }
+
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 8px;
+            padding: 0 15px;
+        }
+
+        .camera-btn {
+            padding: 6px 2px;
+            border: 2px solid #3498db;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .camera-btn:hover {
+            background: #3498db;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+
+        .camera-btn.active {
+            background: #e74c3c;
+            border-color: #e74c3c;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+            70% { box-shadow: 0 0 0 30px rgba(231, 76, 60, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+        }
+
+        /* 主要內容區 */
+        .main-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .map-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        .map-container:active {
+            cursor: grabbing;
+        }
+
+        .map-content {
+            position: absolute;
+            transform-origin: 0 0;
+            transition: transform 0.01s ease;
+        }
+
+        .floor-plan {
+            display: block;
+            height: auto;
+            user-select: none;
+        }
+
+        /* 監視器標記 */
+        .camera-marker {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #e74c3c;
+            border: 2px solid white;
+            border-radius: 90%;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .camera-marker:hover {
+            transform: translate(-50%, -50%) scale(1.5);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.5);
+        }
+
+        .camera-marker.active {
+            background: #FF5809;
+            animation: pulse 2s infinite;
+            transform: translate(-50%, -50%) scale(1.7);
+            }
+
+        .camera-marker .label {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .camera-marker:hover .label {
+            opacity: 1;
+        }
+
+        /* 控制面板 */
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .zoom-controls {
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            transition: all 0.3s ease;
+        }
+
+        .zoom-btn:hover {
+            background: #3498db;
+            color: white;
+        }
+
+        .zoom-btn:not(:last-child) {
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        /* 資訊面板 */
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            width: 220px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .info-panel.active {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .info-panel h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 20px;
+            padding-right: 35px;
+        }
+
+        .info-panel p {
+            color: #7f8c8d;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .close-info-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: transparent;
+            border: none;
+            color: #95a5a6;
+            font-size: 20px;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .close-info-btn:hover {
+            background: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+        }
+
+        /* 手機端適配 */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: fixed;
+                height: 100dvh;
+                transform: translateX(-100%);
+                z-index: 2000;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                width: 100%;
+            }
+
+            .menu-toggle {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                z-index: 2001;
+                background: rgba(255, 255, 255, 0.95);
+                border: none;
+                border-radius: 8px;
+                padding: 10px;
+                cursor: pointer;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            }
+
+            .camera-grid {
+                grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+            }
+
+            .info-panel {
+                bottom: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>偉鋼彰濱廠區<br>監視器位置查詢系統</h2>
+
+                 <button onclick="showPdfModal()" style="
+                 margin-top: 8px;
+                 background-color: #ffffff4;
+                 border: 1px solid #fff;
+                 border-radius: 6px;
+                 padding: 6px 12px;
+                 font-size: 13px;
+                 color: #2c3e50;
+                 cursor: pointer;
+                 transition: background 0.2s;
+                 ">🔎 查看使用說明</button>
+
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="搜尋監視器編號..." oninput="handleSearchInput()">
+                    <button id="clearSearchBtn" class="clear-search-btn" onclick="clearSearch()" style="display: none;">✕</button>
+                </div>
+            </div>
+            
+            <div class="zone-section">
+                <div class="zone-title">A（警衛室INPUT1）</div>
+                <div class="camera-grid" id="zoneA"></div>
+            </div>
+            
+            <div class="zone-section">
+                <div class="zone-title">B（警衛室INPUT2）</div>
+                <div class="camera-grid" id="zoneB"></div>
+            </div>
+            
+            <div class="zone-section">
+                <div class="zone-title">C（警衛室INPUT3）</div>
+                <div class="camera-grid" id="zoneC"></div>
+            </div>
+            
+            <div class="zone-section">
+                <div class="zone-title">D（辦公室）</div>
+                <div class="camera-grid" id="zoneD"></div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="map-container" id="mapContainer">
+                <div class="map-content" id="mapContent">
+                    <img id="floorImage" src="監視器.png" class="floor-plan" />
+                        <!-- 建築物外框 -->
+                       
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomIn()">+</button>
+                    <button class="zoom-btn" onclick="zoomOut()">-</button>
+                </div>
+            </div>
+            
+            <div class="info-panel" id="infoPanel">
+                <button class="close-info-btn" onclick="closeInfoPanel()">✕</button>
+                <h3 id="infoTitle">請選擇監視器</h3>
+                <p id="infoLocation">位置: --</p>
+                <p id="infoZone">連接埠: --</p>
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // 監視器數據
+        const cameras = {
+            A: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12'],
+            B: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11', 'B12', 'B13', 'B14', 'B15', 'B16', 'B17', 'B18', 'B19', 'B20', 'B21', 'B22', 'B23', 'B24'],
+            C: ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24'],
+            D: ['D1', 'D2']
+        };
+
+        // 監視器位置配置 - 根據平面圖實際位置
+        const cameraPositions = {
+            // A區
+            A1: { x: 611, y: 673, area: '一樓左梯向前' },
+            A2: { x: 611, y: 320, area: '一樓右梯向前' },
+            A3: { x: 530, y: 851, area: '焊材管制室' },
+            A4: { x: 595, y: 305, area: '會議室' },
+            A5: { x: 135, y: 135, area: '彰濱倉2F' },
+            A6: { x: 116, y: 322, area: '右後巷' },
+            A7: { x: 116, y: 675, area: '左後巷-1' },
+            A8: { x: 610, y: 1636, area: '二樓右梯向前' },
+            A9: { x: 595, y: 1634, area: '二樓右梯向後' },
+            A10: { x: 595, y: 2015, area: '二樓左梯向後' },
+            A11: { x: 610, y: 2013, area: '二樓左梯向前' },
+            A12: { x: 68, y: 855, area: '左後巷-2' },
+ 
+
+            // B區
+            B1: { x: 1393, y: 123, area: '廠外右前向後' },
+            B2: { x: 930, y: 119, area: '右中捲門向前' },
+            B3: { x: 990, y: 119, area: '右中捲門向後' },
+            B4: { x: 65, y: 675, area: '廠外狗屋' },
+            B5: { x: 1392, y: 418, area: '前捲門內右側' },
+            B6: { x: 1392, y: 583, area: '前捲門內左側' },
+            B7: { x: 1392, y: 848, area: '廠內左前' },
+            B8: { x: 815, y: 1175, area: '彰濱西3F' },
+            B9: { x: 611, y: 133, area: '廠內右中' },
+            B10: { x: 598, y: 670, area: '一樓左梯向後' },
+            B11: { x: 585, y: 328, area: '右中梯向後' },
+            B12: { x: 125, y: 298, area: '彰濱倉1F-1' },
+            B13: { x: 133, y: 313, area: '彰濱倉1F-2' },
+            B14: { x: 131, y: 691, area: '噴砂室內向前' },
+            B15: { x: 177, y: 677, area: '噴砂室外向前' },
+            B16: { x: 127, y: 1630, area: '彰濱東2F後' },
+            B17: { x: 1392, y: 151, area: '廠內右前' },
+            B18: { x: 345, y: 1173, area: '電氣室' },
+            B19: { x: 990, y: 863, area: '左中捲門內側' },
+            B20: { x: 370, y: 855, area: '調漆室向內' },
+            B21: { x: 355, y: 853, area: '噴砂室內向後' },
+            B22: { x: 370, y: 692, area: '調漆室向外' },
+            B23: { x: 127, y: 2017, area: '彰濱西2F後' },
+            B24: { x: 68, y: 855, area: '左後巷-2' },
+
+            // C區
+            C1: { x: 2054, y: 614, area: '警衛室向大門' },
+            C2: { x: 2167, y: 1107, area: '左小門' },
+            C3: { x: 2153, y: 850, area: '配電室向左小門' },
+            C4: { x: 2050, y: 863, area: '配電室向廣場' },
+            C5: { x: 2044, y: 614, area: '警衛室向廣場' },
+            C6: { x: 2170, y: 642, area: '外左大門' },
+            C7: { x: 2170, y: 423, area: '外右大門' },
+            C8: { x: 2165, y: 61, area: '右前圍牆' },
+            C9: { x: 1405, y: 135, area: '廠外右前向前' },
+            C10: { x: 1404, y: 422, area: '前捲門外右側' },
+            C11: { x: 1404, y: 580, area: '前捲門外左側' },
+            C12: { x: 1405, y: 863, area: '廠外左前向前' },
+            C13: { x: 1535, y: 1063, area: '左圍牆中前' },
+            C14: { x: 950, y: 1018, area: '左圍牆中後' },
+            C15: { x: 1394, y: 875, area: '廠外左前向後' },
+            C16: { x: 930, y: 878, area: '左中捲門向前' },
+            C17: { x: 990, y: 878, area: '左中捲門向後' },
+            C18: { x: 600, y: 874, area: '電氣室樓梯前' },
+            C19: { x: 440, y: 878, area: '左後捲門向後' },
+            C20: { x: 125, y: 873, area: '廠外左後向前' },
+            C21: { x: 115, y: 868, area: '廠外左後向後' },
+            C22: { x: 117, y: 128, area: '廠外右後向後' },
+            C23: { x: 33, y: 60, area: '右後圍牆' },
+            C24: { x: 125, y: 124, area: '廠外右後向前' },
+
+            // D區
+            D1: { x: 2175, y: 580, area: '門鈴' },
+            D2: { x: 2066, y: 626, area: '警衛室屋簷向外' },
+           
+        };
+
+        let currentZoom = 1;
+        let currentX = 0;
+        let currentY = 0;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let selectedCamera = null;
+        let panLocked = false; // 控制平移鎖定
+
+        // 初始化
+        function init() {
+            createCameraButtons();
+            createCameraMarkers();
+            setupEventListeners();
+            updateInfoPanel();
+        }
+
+        // 創建監視器按鈕
+        function createCameraButtons() {
+            Object.keys(cameras).forEach(zone => {
+                const container = document.getElementById(`zone${zone}`);
+                cameras[zone].forEach(camera => {
+                    const button = document.createElement('button');
+                    button.className = 'camera-btn';
+                    button.textContent = camera;
+                    button.onclick = () => selectCamera(camera);
+                    container.appendChild(button);
+                });
+            });
+        }
+
+        // 創建監視器標記
+        function createCameraMarkers() {
+            const mapContent = document.getElementById('mapContent');
+            
+            Object.keys(cameras).forEach(zone => {
+                cameras[zone].forEach(camera => {
+                    const marker = document.createElement('div');
+                    marker.className = 'camera-marker';
+                    marker.id = `marker-${camera}`;
+                    
+                    // 使用實際位置座標
+                    const pos = cameraPositions[camera];
+                    if (pos) {
+                        marker.style.left = pos.x + 'px';
+                        marker.style.top = pos.y + 'px';
+                        marker.onclick = () => selectCamera(camera);
+                        
+                        const label = document.createElement('div');
+                        label.className = 'label';
+                        label.textContent = camera;
+                        marker.appendChild(label);
+                        
+                        mapContent.appendChild(marker);
+                    }
+                });
+            });
+        }
+
+        // 選擇監視器
+        function selectCamera(cameraId) {
+            // 清除之前的選擇
+            document.querySelectorAll('.camera-btn.active').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.camera-marker.active').forEach(marker => {
+                marker.classList.remove('active');
+            });
+
+            // 設置新的選擇
+            selectedCamera = cameraId;
+            const button = [...document.querySelectorAll('.camera-btn')].find(btn => btn.textContent === cameraId);
+            const marker = document.getElementById(`marker-${cameraId}`);
+            
+            if (button) button.classList.add('active');
+            if (marker) marker.classList.add('active');
+
+            // 移動到監視器位置
+            const pos = cameraPositions[cameraId];
+            
+            if (pos) {
+                panToPosition(pos.x, pos.y);
+                const zone = cameraId.charAt(0);
+                updateInfoPanel(cameraId, zone, pos.area);
+            }
+
+            // 手機端自動關閉側邊欄
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+        }
+
+        // 移動到指定位置
+        function panToPosition(x, y) {
+            const container = document.getElementById('mapContainer');
+            const containerRect = container.getBoundingClientRect();
+            
+            // 計算居中位置
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+            
+            currentX = centerX - x * currentZoom;
+            currentY = centerY - y * currentZoom;
+            
+            updateMapTransform();
+        }
+
+        // 更新地圖變換
+        function updateMapTransform() {
+            const mapContent = document.getElementById('mapContent');
+            mapContent.style.transform = `translate(${currentX}px, ${currentY}px) scale(${currentZoom})`;
+        }
+
+        // 縮放功能
+        function zoomIn() {
+            currentZoom = Math.min(currentZoom * 1.2, 5);
+            updateMapTransform();
+        }
+
+        function zoomOut() {
+            currentZoom = Math.max(currentZoom / 1.2, 0.5);
+            updateMapTransform();
+        }
+
+        // 搜尋功能
+
+        // 處理搜尋輸入
+        function handleSearchInput() {
+            toggleClearButton();
+            searchCameras();
+        }
+
+        function searchCameras() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    
+            let visibleCount = 0;
+            let lastVisibleDevice = null;
+    
+            // 遍歷所有監視器按鈕
+            document.querySelectorAll('.camera-btn').forEach((button) => {
+                const cameraId = button.textContent;
+        
+                if (cameraId.toLowerCase().includes(searchTerm)) {
+                    button.style.display = 'block';
+                    visibleCount++;
+                    lastVisibleDevice = cameraId;
+                } else {
+                    button.style.display = 'none';
+                }
+            });
+    
+            // 如果搜尋結果唯一，自動選擇
+            if (visibleCount === 1 && lastVisibleDevice) {
+                selectCamera(lastVisibleDevice);
+
+                // 🔥 讓搜尋框失去焦點，收起鍵盤
+                document.getElementById('searchInput').blur();
+            }
+        }
+
+        // 新增：顯示/隱藏清除按鈕
+        function toggleClearButton() {
+            const searchInput = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('clearSearchBtn');
+    
+            if (searchInput.value.length > 0) {
+                clearBtn.style.display = 'flex';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+        }
+
+        // 新增：清除搜尋
+        function clearSearch() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = '';
+    
+            // 隱藏清除按鈕
+            toggleClearButton();
+    
+            // 顯示所有按鈕
+            document.querySelectorAll('.camera-btn').forEach((button) => {
+                button.style.display = 'block';
+            });
+    
+            // 清除選擇狀態
+            document.querySelectorAll('.camera-btn.active').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.camera-marker.active').forEach(marker => {
+                marker.classList.remove('active');
+            });
+    
+            // 重置選擇的監視器
+            selectedCamera = null;
+    
+    }
+
+        // 更新資訊面板
+        function updateInfoPanel(cameraId, zone, area) {
+            const panel = document.getElementById('infoPanel');
+            
+            if (cameraId) {
+                document.getElementById('infoTitle').textContent = `監視器 ${cameraId}`;
+                document.getElementById('infoLocation').textContent = `位置: ${area}`;
+                document.getElementById('infoZone').textContent = `連接埠: ${zone}`;
+                panel.classList.add('active');
+            } else {
+                document.getElementById('infoTitle').textContent = '請選擇監視器';
+                document.getElementById('infoLocation').textContent = '位置: --';
+                document.getElementById('infoZone').textContent = '區域: --';
+                panel.classList.remove('active');
+            }
+        }
+
+        // 關閉資訊面板
+        function closeInfoPanel() {
+            // 清除選擇狀態
+            document.querySelectorAll('.camera-btn.active').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.camera-marker.active').forEach(marker => {
+                marker.classList.remove('active');
+            });
+    
+            // 重置選擇的監視器
+            selectedCamera = null;
+    
+            // 更新資訊面板（會自動隱藏）
+            updateInfoPanel();
+        }
+
+        // 設置事件監聽器
+        function setupEventListeners() {
+            const mapContainer = document.getElementById('mapContainer');
+            
+            // 滑鼠事件
+            mapContainer.addEventListener('mousedown', startDrag);
+            mapContainer.addEventListener('wheel', handleWheel);
+            
+            // 觸控事件
+            mapContainer.addEventListener('touchstart', handleTouchStart);
+            mapContainer.addEventListener('touchmove', handleTouchMove);
+            mapContainer.addEventListener('touchend', handleTouchEnd);
+            
+            // 鍵盤事件
+            document.addEventListener('keydown', handleKeyDown);
+        }
+
+        // 拖拽功能
+        function startDrag(e) {
+            if (e.button !== 0) return; // 只響應左鍵
+
+            isDragging = true;
+            dragStart.x = e.clientX;
+            dragStart.y = e.clientY;
+
+            // 在 document 上添加事件監聽器
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', endDrag);
+    
+            e.preventDefault(); // 防止選取文字
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - dragStart.x;
+            const deltaY = e.clientY - dragStart.y;
+
+            currentX += deltaX;
+            currentY += deltaY;
+    
+            dragStart.x = e.clientX;
+            dragStart.y = e.clientY;
+    
+            updateMapTransform();
+        }
+
+        function endDrag() {
+            isDragging = false;
+
+            // 移除事件監聽器
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', endDrag);
+        }
+
+        // 滾輪縮放
+        function handleWheel(e) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const newZoom = Math.max(0.2, Math.min(5, currentZoom * delta));
+            
+            if (newZoom !== currentZoom) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                currentX = x - (x - currentX) * (newZoom / currentZoom);
+                currentY = y - (y - currentY) * (newZoom / currentZoom);
+                currentZoom = newZoom;
+                
+                updateMapTransform();
+            }
+        }
+
+        // 觸控事件
+        let lastTouchDistance = 0;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let isZooming = false;
+        let lastTouchCenter = { x: 0, y: 0 };
+
+        function handleTouchStart(e) {
+            if (e.touches.length === 1) {
+                isZooming = false;  // 重置縮放狀態
+                touchStartX = e.touches[0].clientX - currentX;
+                touchStartY = e.touches[0].clientY - currentY;
+            } else if (e.touches.length === 2) {
+                isZooming = true;  // 標記進入縮放模式
+                lastTouchDistance = getTouchDistance(e.touches);
+
+                // 記錄兩指中心點
+                lastTouchCenter.x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                lastTouchCenter.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            }
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            
+            const mapContainer = document.getElementById('mapContainer');
+
+            // 🔥 如果正在縮放但手指數變成1,重新初始化單指平移
+            if (isZooming && e.touches.length === 1) {
+                isZooming = false;
+                touchStartX = e.touches[0].clientX - currentX;
+                touchStartY = e.touches[0].clientY - currentY;
+                lastTouchDistance = 0;
+                return;  // 這次不處理,等下次 move 再說
+            }
+
+            if (e.touches.length === 1 && !isZooming) {
+               //單指平移
+               currentX = e.touches[0].clientX - touchStartX;
+               currentY = e.touches[0].clientY - touchStartY;
+               updateMapTransform();
+                
+
+            } else if (e.touches.length === 2) {
+                isZooming = true;
+
+                const distance = getTouchDistance(e.touches);
+                const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+                // 🔥 第一次進入雙指模式
+                if (lastTouchDistance === 0) {
+                    lastTouchDistance = distance;
+                    lastTouchCenter.x = centerX;
+                    lastTouchCenter.y = centerY;
+                    return;
+                }
+
+                //計算縮放比例
+                const delta = distance / lastTouchDistance;
+
+                // 🔥 只在縮放變化明顯時才更新 (減少微小抖動)
+                if (Math.abs(delta - 1) < 0.02) {
+
+                    return;
+                }
+
+                const newZoom = Math.max(0.5, Math.min(5, currentZoom * delta));
+                
+                // 🔥 關鍵:即使到達邊界也要更新 lastTouchDistance
+                lastTouchDistance = distance;
+
+                // 只有當縮放真的改變時才更新位置
+                if (newZoom !== currentZoom) {
+                    const rect = mapContainer.getBoundingClientRect();
+
+                    // 螢幕上的點相對於容器的位置
+                    const pointX = centerX - rect.left;
+                    const pointY = centerY - rect.top;
+
+                    const oldZoom = currentZoom;
+
+                    // 🔥 關鍵：計算這個螢幕點在地圖上的實際座標
+                    // (螢幕座標 - 當前偏移) / 當前縮放 = 地圖上的實際座標
+                    const mapX = (pointX - currentX) / oldZoom;
+                    const mapY = (pointY - currentY) / oldZoom;
+                
+                    currentZoom = newZoom;
+                    currentX = pointX - mapX * currentZoom;
+                    currentY = pointY - mapY * currentZoom;
+
+                    updateMapTransform();
+                }
+                
+                // 更新中心點
+                lastTouchCenter.x = centerX;
+                lastTouchCenter.y = centerY;
+
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (e.touches.length === 0) {
+                //所有手指都離開
+                isZooming = false;
+                touchStartX = 0;
+                touchStartY = 0;
+                lastTouchDistance = 0;
+            } else if (e.touches.length === 1 && isZooming) {
+                // 🔥 從雙指變成單指:重新設定單指起點
+                isZooming = false;
+                touchStartX = e.touches[0].clientX - currentX;
+                touchStartY = e.touches[0].clientY - currentY;
+                lastTouchDistance = 0;
+            }
+        }
+
+
+        function getTouchDistance(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // 鍵盤快捷鍵
+        function handleKeyDown(e) {
+            switch(e.key) {
+                case '+':
+                case '=':
+                    zoomIn();
+                    break;
+                case '-':
+                    zoomOut();
+                    break;
+                case 'Escape':
+                    selectedCamera = null;
+                    document.querySelectorAll('.camera-btn.active').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    document.querySelectorAll('.camera-marker.active').forEach(marker => {
+                        marker.classList.remove('active');
+                    });
+                    updateInfoPanel();
+                    break;
+            }
+        }
+
+        // 側邊欄切換
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+
+        // 初始化系統
+        init();
+
+        function closeModal() {
+            document.getElementById("pdfModal").style.display = "none";
+            localStorage.setItem("pdfModalClosed", "true"); // 記錄已關閉
+        }
+
+        function showPdfModal() {
+          document.getElementById("pdfModal").style.display = "block";
+        }
+
+        window.addEventListener('load', () => {
+            // 如果 localStorage 裡沒有記錄，顯示彈窗
+            if (!localStorage.getItem("pdfModalClosed")) {
+                setTimeout(() => {
+                    document.getElementById("pdfModal").style.display = "block";
+                }, 500); // 延遲 0.5 秒跳出
+            }
+        });
+
+
+    </script>
+    </script>
+
+    <!-- 📄 使用說明彈窗 -->
+    <div id="pdfModal" style="
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #FFFFDF;
+        padding: 20px 30px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        border-radius: 12px;
+        z-index: 3000;
+        max-width: 90%;
+        width: 400px;
+        text-align: center;
+        display: none;
+    ">
+      <button onclick="closeModal()" style="
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: transparent;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: #999;
+      ">&times;</button>
+      <h3 style="margin-bottom: 12px;">📄 使用說明</h3>
+      <p>請參閱操作指南：<br>
+        <a href="how to use.pdf" target="_blank" style="color: #3498db;">點我下載 PDF</a>
+      </p>
+    </div>
+
+
+</body>
+</html>
